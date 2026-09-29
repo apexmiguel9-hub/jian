@@ -35,15 +35,13 @@ use jian_ops_schema::node::PenNode;
 
 /// El mismo fixture que `VSTACK` en canvas_select_drag_tests.rs: frame
 /// vertical en (400,60) 200x300, gap 8, tres rectangulos hijos de 80x40.
-const VSTACK: &str = r#"{"version":"1.0.0","children":[
-  {"type":"frame","id":"stack","name":"Stack","x":400,"y":60,"width":200,"height":300,
-   "layout":"vertical","gap":8,
+const VSTACK: &str = r#"{"type":"frame","id":"stack","name":"Stack","x":400,"y":60,
+   "width":200,"height":300,"layout":"vertical","gap":8,
    "children":[
      {"type":"rectangle","id":"a","name":"A","width":80,"height":40},
      {"type":"rectangle","id":"b","name":"B","width":80,"height":40},
      {"type":"rectangle","id":"c","name":"C","width":80,"height":40}
-   ]}
-]}"#;
+   ]}"#;
 
 fn engine_for(json: &str) -> (NodeTree, LayoutEngine, NodeId) {
     let root: PenNode = serde_json::from_str(json).unwrap();
