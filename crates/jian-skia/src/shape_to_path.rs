@@ -74,7 +74,7 @@ pub fn fix_radius(r: Radii, width: f32, height: f32) -> Radii {
 /// Traducido de `rect_segments_local` (Penpot, shape_to_path.rs:113) y su
 /// helper `make_corner`. Devuelve siempre un contorno cerrado.
 pub fn rect_commands(x: f32, y: f32, width: f32, height: f32, radii: Option<Radii>) -> Vec<PathCommand> {
-    let Some((r1, r2, r3, r4)) = radii else {
+    let Some([r1, r2, r3, r4]) = radii else {
         // Sin radios: un rect simple. Mismo resultado que add_rect pero
         // como comandos, para que el loader pueda trazar anchors.
         return vec![
@@ -86,7 +86,7 @@ pub fn rect_commands(x: f32, y: f32, width: f32, height: f32, radii: Option<Radi
         ];
     };
 
-    let (r1, r2, r3, r4) = fix_radius([r1, r2, r3, r4], width, height);
+    let [r1, r2, r3, r4] = fix_radius([r1, r2, r3, r4], width, height);
     // Si tras el clamp todo es cero, es un rect recto: no gastes curva.
     if r1 == (0.0, 0.0) && r2 == (0.0, 0.0) && r3 == (0.0, 0.0) && r4 == (0.0, 0.0) {
         return rect_commands(x, y, width, height, None);
