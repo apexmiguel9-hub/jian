@@ -65,40 +65,73 @@ pub fn to_sk_path(commands: &[PathCommand]) -> SkPath {
 /// `build_rect_path` / `build_oval_path` (boolean_ops.rs:110/:128) produzcan
 /// geometria real y no un path muerto.
 ///
-/// Se usa `Geometry::decompose` y no `Iter` a proposito: `Iter` emite un
-/// unico punto por verbo y obliga a leer los controles con `points()` de
-/// forma intercalada, que es fragil. `decompose` entrega cada verbo con
-/// TODOS sus puntos de una vez, que es justo lo que necesitamos para emitir
-/// un comando completo.
+/// Se usa `PathIter` con `points()` + `verb()` (skia-safe 0.97, ver
+/// core/path_iter.rs) y NO `Geometry::decompose`, que no existe en esta
+/// version. `PathIter` entrega un verbo por paso y `points()` da TODOS los
+/// puntos de ese verbo de una vez, que es justo lo que hace falta para
+/// emitir un comando completo.
+///
+/// `PathVerb` es un alias a `sb::SkPathVerb` (core/path_types.rs:19) y sus
+/// variantes reales son Move/Line/Quad/Conic/Cubic/Close. `Conic` no tiene
+/// equivalente en `PathCommand`, asi que se degrada a `LineTo` del punto
+/// final: es la misma decision que toma el resto del codebase cuando no hay
+/// conic disponible.
 ///
 /// Mapa de verbo Skia -> comando:
-///   Move(p)                     -> MoveTo(p)
-///   Line(p)                     -> LineTo(p)
-///   Quad(c, p)                  -> QuadTo(c, p)
-///   Cubic(c1, c2, p)            -> CubicTo(c1, c2, p)
-///   Close                       -> Close
-///
-/// No hay nada que "normalizar" aqui: el loader (`op-pen-loader` /
-/// `adapter/shapes.rs`) es quien convierte estos comandos en
-/// `PenPathAnchor` con sus handles relativos, asi que basta con faithfully
-/// repasar los verbos.
+///   Move(p)          -> MoveTo(p)
+///   Line(p)          -> LineTo(p)
+///   Quad(c, p)       -> QuadTo(c, p)
+///   Cubic(c1, c2, p) -> CubicTo(c1, c2, p)
+///   Conic(..., p)    -> LineTo(p)   (sin conic en PathCommand)
+///   Close            -> Close
 pub fn to_path_commands(path: &SkPath) -> Vec<PathCommand> {
     use jian_core::geometry::point;
-    use skia_safe::path::PathVerb;
+    // PathVerb vive en skia_safe::prelude (core/path_types.rs:19), no en
+    // skia_safe::path -- de ahi el E0603 de la primera version.
+    use skia_safe::PathVerb;
 
     let pt = |p: SkPoint| point(p.x, p.y);
     let mut out = Vec::new();
-    path.decompose(&mut |verb| {
+    for rec in path.iter() {
+        let verb = rec.verb();
+        let points = rec.points();
         match verb {
-            PathVerb::Move(p) => out.push(PathCommand::MoveTo(pt(p))),
-            PathVerb::Line(p) => out.push(PathCommand::LineTo(pt(p))),
-            PathVerb::Quad(c, p) => out.push(PathCommand::QuadTo(pt(c), pt(p))),
-            PathVerb::Cubic(c1, c2, p) => out.push(PathCommand::CubicTo(pt(c1), pt(c2), pt(p))),
+            PathVerb::Move => {
+                if let Some(p) = points.first() {
+                    out.push(PathCommand::MoveTo(pt(*p)));
+                }
+            }
+            PathVerb::Line => {
+                if let Some(p) = points.first() {
+                    out.push(PathCommand::LineTo(pt(*p)));
+                }
+            }
+            PathVerb::Quad => {
+                // points() = [control, p]
+                if points.len() >= 2 {
+                    out.push(PathCommand::QuadTo(pt(points[0]), pt(points[1])));
+                } else if let Some(p) = points.first() {
+                    out.push(PathCommand::LineTo(pt(*p)));
+                }
+            }
+            PathVerb::Conic => {
+                // Sin conic en PathCommand: degradamos al punto final.
+                if let Some(p) = points.last() {
+                    out.push(PathCommand::LineTo(pt(*p)));
+                }
+            }
+            PathVerb::Cubic => {
+                // points() = [c1, c2, p]
+                if points.len() >= 3 {
+                    out.push(PathCommand::CubicTo(pt(points[0]), pt(points[1]), pt(points[2])));
+                } else if let Some(p) = points.first() {
+                    out.push(PathCommand::LineTo(pt(*p)));
+                }
+            }
             PathVerb::Close => out.push(PathCommand::Close),
             _ => {}
-        };
-        true
-    });
+        }
+    }
     out
 }
 
