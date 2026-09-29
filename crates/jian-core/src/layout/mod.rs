@@ -29,6 +29,7 @@ use std::cell::Cell;
 use std::collections::HashSet;
 use std::rc::Rc;
 use taffy::prelude::*;
+use taffy::tree::LayoutOutput;
 
 /// Per-node measurer context — populated for text-like leaves so the
 /// Taffy callback can hand styled segments off to a `MeasureBackend`.
@@ -335,17 +336,27 @@ impl LayoutEngine {
         };
         let backend = self.measure.clone();
         self.tree
-            .compute_layout_with_measure(root, space, |known, avail, _node_id, ctx, _style| {
+            .compute_layout_with_measure(root, space, |inputs, _node_id, ctx, _style| {
                 // `ctx` is `Option<&mut Option<TextMeasure>>` — taffy
                 // gives us the NodeContext slot for the node being
                 // measured. Only Text leaves store a populated inner
                 // Option; everything else is None.
                 if let Some(inner) = ctx {
                     if let Some(tm) = inner.as_ref() {
-                        return measure_text_for_taffy(backend.as_ref(), tm, known, avail);
+                        // taffy 0.14 passes the known-dimensions +
+                        // available-space constraints bundled in
+                        // `LayoutInput` (0.5.x split them into two
+                        // positional args).
+                        let size = measure_text_for_taffy(
+                            backend.as_ref(),
+                            tm,
+                            inputs.known_dimensions,
+                            inputs.available_space,
+                        );
+                        return LayoutOutput::from_outer_size(size);
                     }
                 }
-                Size::ZERO
+                LayoutOutput::DEFAULT
             })
             .map_err(|e| CoreError::Layout(e.to_string()))
     }

@@ -68,24 +68,24 @@ pub fn resolve_flex_direction(layout: Option<&LayoutMode>) -> FlexDirection {
 
 pub fn resolve_justify(j: Option<&OpsJustify>) -> JustifyContent {
     match j {
-        Some(OpsJustify::Start) => JustifyContent::FlexStart,
-        Some(OpsJustify::Center) => JustifyContent::Center,
-        Some(OpsJustify::End) => JustifyContent::FlexEnd,
-        Some(OpsJustify::SpaceBetween) => JustifyContent::SpaceBetween,
-        Some(OpsJustify::SpaceAround) => JustifyContent::SpaceAround,
-        _ => JustifyContent::FlexStart,
+        Some(OpsJustify::Start) => JustifyContent::FLEX_START,
+        Some(OpsJustify::Center) => JustifyContent::CENTER,
+        Some(OpsJustify::End) => JustifyContent::FLEX_END,
+        Some(OpsJustify::SpaceBetween) => JustifyContent::SPACE_BETWEEN,
+        Some(OpsJustify::SpaceAround) => JustifyContent::SPACE_AROUND,
+        _ => JustifyContent::FLEX_START,
     }
 }
 
 pub fn resolve_align(a: Option<&OpsAlign>) -> AlignItems {
     match a {
-        Some(OpsAlign::Start) => AlignItems::FlexStart,
-        Some(OpsAlign::Center) => AlignItems::Center,
-        Some(OpsAlign::End) => AlignItems::FlexEnd,
+        Some(OpsAlign::Start) => AlignItems::FLEX_START,
+        Some(OpsAlign::Center) => AlignItems::CENTER,
+        Some(OpsAlign::End) => AlignItems::FLEX_END,
         // `stretch` renders as start: the position step has no font-metrics
         // stretch pass, matching TS `normalizeAlignItems('stretch') -> 'start'`.
-        Some(OpsAlign::Stretch) => AlignItems::FlexStart,
-        None => AlignItems::FlexStart,
+        Some(OpsAlign::Stretch) => AlignItems::FLEX_START,
+        None => AlignItems::FLEX_START,
     }
 }
 
@@ -160,9 +160,9 @@ fn stack_container_to_style(c: &ContainerProps, mut style: Style) -> Style {
 /// which is where flex put a lone child anyway.
 fn resolve_justify_items(j: Option<&OpsJustify>) -> AlignItems {
     match j {
-        Some(OpsJustify::Center) => AlignItems::Center,
-        Some(OpsJustify::End) => AlignItems::End,
-        _ => AlignItems::Start,
+        Some(OpsJustify::Center) => AlignItems::CENTER,
+        Some(OpsJustify::End) => AlignItems::END,
+        _ => AlignItems::START,
     }
 }
 
@@ -171,9 +171,9 @@ fn resolve_justify_items(j: Option<&OpsJustify>) -> AlignItems {
 /// the full cell.
 fn resolve_align_items(a: Option<&OpsAlign>) -> AlignItems {
     match a {
-        Some(OpsAlign::Center) => AlignItems::Center,
-        Some(OpsAlign::End) => AlignItems::End,
-        _ => AlignItems::Start,
+        Some(OpsAlign::Center) => AlignItems::CENTER,
+        Some(OpsAlign::End) => AlignItems::END,
+        _ => AlignItems::START,
     }
 }
 
@@ -332,8 +332,8 @@ pub fn node_to_style(n: &jian_ops_schema::node::PenNode) -> Style {
         style.inset = Rect {
             left: length(x),
             top: length(y),
-            right: LengthPercentageAuto::Auto,
-            bottom: LengthPercentageAuto::Auto,
+            right: LengthPercentageAuto::auto(),
+            bottom: LengthPercentageAuto::auto(),
         };
     }
     style
@@ -545,7 +545,7 @@ pub fn apply_fill_container_axes(
         return;
     }
     if parent_horizontal {
-        style.align_self = Some(AlignItems::Stretch);
+        style.align_self = Some(AlignItems::STRETCH);
         style.size.height = auto();
     } else {
         style.flex_grow = 1.0;
@@ -633,8 +633,8 @@ mod tests {
         assert_eq!(style.align_content, None);
         // Items default to Start, not grid's Stretch, which would inflate
         // every `fit_content` layer to the whole cell.
-        assert_eq!(style.align_items, Some(AlignItems::Start));
-        assert_eq!(style.justify_items, Some(AlignItems::Start));
+        assert_eq!(style.align_items, Some(AlignItems::START));
+        assert_eq!(style.justify_items, Some(AlignItems::START));
     }
 
     #[test]
@@ -646,8 +646,8 @@ mod tests {
         )
         .unwrap();
         let style = container_to_style(&container);
-        assert_eq!(style.justify_items, Some(AlignItems::Center));
-        assert_eq!(style.align_items, Some(AlignItems::End));
+        assert_eq!(style.justify_items, Some(AlignItems::CENTER));
+        assert_eq!(style.align_items, Some(AlignItems::END));
         assert_eq!(style.justify_content, None);
         assert_eq!(style.align_content, None);
     }
@@ -669,7 +669,7 @@ mod tests {
         let mut style = Style {
             flex_shrink: 1.0,
             flex_grow: 1.0,
-            align_self: Some(AlignItems::Stretch),
+            align_self: Some(AlignItems::STRETCH),
             ..Default::default()
         };
         apply_stack_child(&mut style);
@@ -706,8 +706,8 @@ mod tests {
         let mut style = node_to_style(&node);
         assert_eq!(style.position, Position::Relative);
         apply_fill_container_axes(&mut style, &node, true);
-        assert_eq!(style.align_self, Some(AlignItems::Stretch));
-        assert_eq!(style.size.height, Dimension::Auto);
+        assert_eq!(style.align_self, Some(AlignItems::STRETCH));
+        assert_eq!(style.size.height, Dimension::auto());
     }
 
     #[test]
@@ -715,9 +715,9 @@ mod tests {
         let container: ContainerProps =
             serde_json::from_str(r#"{"width":100,"minWidth":50,"maxHeight":40}"#).unwrap();
         let style = container_to_style(&container);
-        assert_eq!(style.min_size.width, Dimension::Auto);
-        assert_eq!(style.max_size.height, Dimension::Auto);
-        assert_eq!(style.max_size.width, Dimension::Auto);
+        assert_eq!(style.min_size.width, Dimension::auto());
+        assert_eq!(style.max_size.height, Dimension::auto());
+        assert_eq!(style.max_size.width, Dimension::auto());
     }
 
     #[test]
@@ -740,7 +740,7 @@ mod tests {
                 .unwrap();
         let mut warnings = Vec::new();
         let style = node_to_style_responsive(&node, &mut warnings);
-        assert_eq!(style.min_size.width, Dimension::Auto);
+        assert_eq!(style.min_size.width, Dimension::auto());
         assert_eq!(warnings.len(), 1);
     }
 }
