@@ -715,9 +715,9 @@ mod tests {
         let container: ContainerProps =
             serde_json::from_str(r#"{"width":100,"minWidth":50,"maxHeight":40}"#).unwrap();
         let style = container_to_style(&container);
-        assert_eq!(style.min_size.width, Dimension::auto());
-        assert_eq!(style.max_size.height, Dimension::auto());
-        assert_eq!(style.max_size.width, Dimension::auto());
+        assert_eq!(style.min_size.width, LengthPercentageAuto::auto());
+        assert_eq!(style.max_size.height, LengthPercentageAuto::auto());
+        assert_eq!(style.max_size.width, LengthPercentageAuto::auto());
     }
 
     #[test]
@@ -740,7 +740,7 @@ mod tests {
                 .unwrap();
         let mut warnings = Vec::new();
         let style = node_to_style_responsive(&node, &mut warnings);
-        assert_eq!(style.min_size.width, Dimension::auto());
+        assert_eq!(style.min_size.width, LengthPercentageAuto::auto());
         assert_eq!(warnings.len(), 1);
     }
 }
