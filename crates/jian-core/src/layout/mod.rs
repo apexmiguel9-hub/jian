@@ -813,3 +813,6 @@ fn measure_text_for_taffy(
 
 #[cfg(test)]
 mod preload_tests;
+
+#[cfg(test)]
+mod leaf_sizing_repro_tests;
