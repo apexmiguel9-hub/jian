@@ -222,7 +222,8 @@ mod tests {
         let g = commands_to_anchors(&cmds);
         let a0 = &g.anchors[0];
         assert_eq!(a0.x, 0.0);
-        let out = a0.handle_out.expect("la primera deberia tener handle_out");
+        // PenPathHandle no es Copy, asi que as_ref() y no un expect() que mueve.
+        let out = a0.handle_out.as_ref().expect("la primera deberia tener handle_out");
         assert!(
             (out.x - 50.0).abs() < 0.001 && out.y.abs() < 0.001,
             "handle_out debe ser RELATIVO al ancla: {:?}",
@@ -230,7 +231,7 @@ mod tests {
         );
         // Y el ancla nueva guarda su handle_in relativo a ella.
         let a1 = &g.anchors[1];
-        let h_in = a1.handle_in.expect("la segunda deberia tener handle_in");
+        let h_in = a1.handle_in.as_ref().expect("la segunda deberia tener handle_in");
         assert!(
             (h_in.x - 10.0).abs() < 0.001,
             "handle_in relativo: {:?}",
