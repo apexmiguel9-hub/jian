@@ -25,7 +25,7 @@
 //! (CSS Backgrounds 3 §"Corner curves must not overlap"): si la suma de dos
 //! radios adyacentes excede el lado, se escalan proporcionalmente.
 
-use jian_core::render::PathCommand;
+use crate::render::PathCommand;
 
 /// La constante mágica de Bézier para aproximar un círculo: 4·(√2−1)/3.
 /// Igual que en Penpot (`shape_to_path.rs:7`).
@@ -249,30 +249,45 @@ fn corner(kind: Corner, from: (f32, f32), to: (f32, f32), r: (f32, f32)) -> Path
     PathCommand::CubicTo(jpoint(h1.0, h1.1), jpoint(h2.0, h2.1), jpoint(to.0, to.1))
 }
 
-fn jpoint(x: f32, y: f32) -> jian_core::geometry::Point {
-    jian_core::geometry::point(x, y)
+fn jpoint(x: f32, y: f32) -> crate::geometry::Point {
+    crate::geometry::point(x, y)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use skia_safe::{PathBuilder, Path as SkPath};
+    use crate::geometry::point;
 
-    /// Convierte a SkPath para poder medir bounds.
+    /// Caja de los PUNTOS DE CONTROL de los comandos, sin skia. Para las
+    /// formas de este modulo (rect, elipse, poligono) los controles nunca se
+    /// salen de la caja pedida, asi que la caja de los puntos es la caja real.
     fn bounds_of(cmds: &[PathCommand]) -> (f32, f32) {
-        let mut b = PathBuilder::new();
+        let mut minx = f32::INFINITY;
+        let mut miny = f32::INFINITY;
+        let mut maxx = f32::NEG_INFINITY;
+        let mut maxy = f32::NEG_INFINITY;
+        let mut see = |p: crate::geometry::Point| {
+            minx = minx.min(p.x);
+            miny = miny.min(p.y);
+            maxx = maxx.max(p.x);
+            maxy = maxy.max(p.y);
+        };
         for c in cmds {
             match *c {
-                PathCommand::MoveTo(p) => b.move_to(p),
-                PathCommand::LineTo(p) => b.line_to(p),
-                PathCommand::QuadTo(c1, p) => b.quad_to(c1, p),
-                PathCommand::CubicTo(c1, c2, p) => b.cubic_to(c1, c2, p),
-                PathCommand::Close => b.close(),
+                PathCommand::MoveTo(p) | PathCommand::LineTo(p) => see(p),
+                PathCommand::QuadTo(c1, p) => {
+                    see(c1);
+                    see(p);
+                }
+                PathCommand::CubicTo(c1, c2, p) => {
+                    see(c1);
+                    see(c2);
+                    see(p);
+                }
+                PathCommand::Close => {}
             }
         }
-        let path: SkPath = b.detach();
-        let bounds = path.compute_tight_bounds();
-        (bounds.width(), bounds.height())
+        (maxx - minx, maxy - miny)
     }
 
     #[test]
@@ -354,29 +369,4 @@ mod tests {
         assert!(!cmds.iter().any(|c| matches!(c, PathCommand::Close)));
     }
 
-    /// La prueba de integración: una primitiva pasa por rect_commands y
-    /// vuelve por el shim de la Fase 1. Si esto cierra el círculo, el
-    /// "convertir objeto a trazos" tiene sentido.
-    #[test]
-    fn primitive_survives_to_commands_roundtrip() {
-        let cmds = rect_commands(0.0, 0.0, 100.0, 50.0, Some([(12.0, 12.0); 4]));
-        let mut b = PathBuilder::new();
-        for c in &cmds {
-            match *c {
-                PathCommand::MoveTo(p) => b.move_to(p),
-                PathCommand::LineTo(p) => b.line_to(p),
-                PathCommand::QuadTo(c1, p) => b.quad_to(c1, p),
-                PathCommand::CubicTo(c1, c2, p) => b.cubic_to(c1, c2, p),
-                PathCommand::Close => b.close(),
-            }
-        }
-        let path: SkPath = b.detach();
-        let back = crate::path::to_path_commands(&path);
-        assert!(
-            back.len() >= 8,
-            "la ida y vuelta debería conservar los comandos, dio {}",
-            back.len()
-        );
-        assert!(back.iter().any(|c| matches!(c, PathCommand::Close)));
-    }
 }

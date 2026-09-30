@@ -48,9 +48,7 @@ pub(crate) mod image;
 pub mod image_registry;
 #[cfg(feature = "textlayout")]
 pub mod measure;
-pub mod commands_to_anchors;
 pub mod path;
-pub mod shape_to_path;
 pub mod shader_cache;
 pub mod startup;
 pub mod surface;

@@ -31,7 +31,7 @@
 //! y si el ancla es `Mirrored`, el handle contrario es el offset NEGADO. Por
 //! eso el `point_type` se propaga desde el `LineTo`/origen de la curva.
 
-use jian_core::render::PathCommand;
+use crate::render::PathCommand;
 use jian_ops_schema::node::{PenPathAnchor, PenPathHandle, PenPathPointType};
 
 /// Resultado de convertir una lista de comandos en geometría editable.
@@ -161,7 +161,7 @@ fn elevate_quadratic(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use jian_core::geometry::point;
+    use crate::geometry::point;
     use jian_ops_schema::node::PenPathPointType as T;
 
     #[test]
