@@ -258,34 +258,26 @@ mod tests {
     use super::*;
     use crate::geometry::point;
 
-    /// Caja de los PUNTOS DE CONTROL de los comandos, sin skia. Para las
-    /// formas de este modulo (rect, elipse, poligono) los controles nunca se
-    /// salen de la caja pedida, asi que la caja de los puntos es la caja real.
+    /// Caja de los ANCHORS, que es la geometria real y editable.
+    ///
+    /// NO se mide la caja de los puntos de control: en una esquina redondeada
+    /// los controles cubicos quedan FUERA de la caja del rect (un radio de 8
+    /// da controles a ~112 de ancho para un rect de 100), y esa caja no es la
+    /// que se pinta. Los anchors de un rect redondeado SI estan en la caja
+    /// exacta, porque la curva se construye entre ellos.
+    ///
+    /// Tamien evita skia: commands_to_anchors es geometria pura.
     fn bounds_of(cmds: &[PathCommand]) -> (f32, f32) {
+        let anchors = crate::commands_to_anchors::commands_to_anchors(cmds).anchors;
         let mut minx = f32::INFINITY;
         let mut miny = f32::INFINITY;
         let mut maxx = f32::NEG_INFINITY;
         let mut maxy = f32::NEG_INFINITY;
-        let mut see = |p: crate::geometry::Point| {
-            minx = minx.min(p.x);
-            miny = miny.min(p.y);
-            maxx = maxx.max(p.x);
-            maxy = maxy.max(p.y);
-        };
-        for c in cmds {
-            match *c {
-                PathCommand::MoveTo(p) | PathCommand::LineTo(p) => see(p),
-                PathCommand::QuadTo(c1, p) => {
-                    see(c1);
-                    see(p);
-                }
-                PathCommand::CubicTo(c1, c2, p) => {
-                    see(c1);
-                    see(c2);
-                    see(p);
-                }
-                PathCommand::Close => {}
-            }
+        for a in &anchors {
+            minx = minx.min(a.x as f32);
+            miny = miny.min(a.y as f32);
+            maxx = maxx.max(a.x as f32);
+            maxy = maxy.max(a.y as f32);
         }
         (maxx - minx, maxy - miny)
     }
@@ -358,8 +350,18 @@ mod tests {
         let cmds = polygon_commands(0.0, 0.0, 100.0, 100.0, 6);
         // 1 move + 5 lineas + close
         assert_eq!(cmds.len(), 7, "hexágono: 1 move + 5 lineas + close");
+        // Un hexagono regular INSCRITO en una caja 100x100 no la llena: su
+        // ancho es cos(30) del lado, porque los vertices empiezan arriba
+        // (-90 grados) y los laterales quedan a +/-60. El alto si es entero.
         let (w, h) = bounds_of(&cmds);
-        assert!((w - 100.0).abs() < 0.5 && (h - 100.0).abs() < 0.5, "caja del polígono: {}x{}", w, h);
+        let expected_w = 100.0 * (3.0f32).sqrt() / 2.0;
+        assert!(
+            (w - expected_w).abs() < 0.5,
+            "ancho del hexagono inscrito: {} (esperado {})",
+            w,
+            expected_w
+        );
+        assert!((h - 100.0).abs() < 0.5, "alto del hexagono: {}", h);
     }
 
     #[test]
