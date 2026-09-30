@@ -129,7 +129,6 @@ pub fn to_path_commands(path: &SkPath) -> Vec<PathCommand> {
                 }
             }
             PathVerb::Close => out.push(PathCommand::Close),
-            _ => {}
         }
     }
     out
