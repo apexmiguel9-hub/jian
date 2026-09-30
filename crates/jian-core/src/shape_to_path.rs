@@ -217,6 +217,18 @@ enum Corner {
 /// de control en una sola cúbica, que es como un round-join de un solo
 /// segmento.
 fn corner(kind: Corner, from: (f32, f32), to: (f32, f32), r: (f32, f32)) -> PathCommand {
+    // MEJORA SOBRE PENPOT. Penpot emite make_corner para las cuatro esquinas
+    // sin guard (shape_to_path.rs:128-137), asi que un rect con UNA esquina
+    // redondeada produce 4 cubicas, tres de ellas degeneradas: se ven igual
+    // (una cubica con controles colineales ES una recta) pero el ancla
+    // resultante lleva handles que no existen geometricamente.
+    //
+    // Aqui una esquina de radio 0 es un LineTo, con lo que su ancla queda sin
+    // handles. Para nuestro objetivo —anchors editables— eso es lo correcto:
+    // una esquina recta no deberia teach handles.
+    if r.0 <= 0.0 || r.1 <= 0.0 {
+        return PathCommand::LineTo(jpoint(to.0, to.1));
+    }
     let c = BEZIER_CIRCLE_C;
     let width = r.0 * 2.0;
     let height = r.1 * 2.0;
@@ -308,15 +320,39 @@ mod tests {
         assert_eq!(cubics, 4, "debería haber una cúbica por esquina");
     }
 
+    /// Una esquina de radio 0 debe ser un LineTo, no una cubica degenerada.
+    ///
+    /// Penpot emite 4 cubicas siempre (shape_to_path.rs:128-137, sin guard), y
+    /// tres quedan degeneradas: se ven igual pero el ancla gana handles que no
+    /// existen geometricamente. Para anchors editables eso es ruido, asi que
+    /// aqui el radio 0 cae a LineTo. Es una mejora deliberada sobre Penpot.
     #[test]
     fn per_corner_radii_are_respected() {
         // Solo la esquina superior izquierda redondeada.
-        let cmds = rect_commands(0.0, 0.0, 100.0, 50.0, Some([(10.0, 10.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0)]));
+        let cmds = rect_commands(
+            0.0,
+            0.0,
+            100.0,
+            50.0,
+            Some([(10.0, 10.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0)]),
+        );
         let cubics = cmds
             .iter()
             .filter(|c| matches!(c, PathCommand::CubicTo(..)))
             .count();
         assert_eq!(cubics, 1, "solo una esquina redondeada -> una cúbica");
+
+        // Y los anchors de las esquinas rectas NO llevan handles.
+        let anchors = crate::commands_to_anchors::commands_to_anchors(&cmds).anchors;
+        let con_handles = anchors
+            .iter()
+            .filter(|a| a.handle_in.is_some() || a.handle_out.is_some())
+            .count();
+        assert_eq!(
+            con_handles, 2,
+            "solo la esquina redondeada debe tener handles (in+out), hallados {}",
+            con_handles
+        );
     }
 
     #[test]
