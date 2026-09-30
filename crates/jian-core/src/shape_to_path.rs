@@ -49,13 +49,28 @@ type Radii = [(f32, f32); 4];
 /// con L = ancho (top/bottom) o alto (left/right), y S = suma de los dos
 /// radios de las esquinas de ese lado.
 pub fn fix_radius(r: Radii, width: f32, height: f32) -> Radii {
-    let safe = |d: f32| if d > 0.0 { d } else { f32::INFINITY };
+    // Un lado cuyos dos radios suman 0 NO impone ninguna restriccion, asi que su
+    // ratio es 1.0 (no hay nada que encoger).
+    //
+    // Penpot divide sin guard (shape_to_path.rs:91) y le sale bien porque en
+    // f32 `width / 0.0` es +infinito, y min_5 se queda con el 1.0 de arriba. La
+    // primera version de aqui metio un `safe()` que devolvia INFINITY como
+    // DIVISOR, lo que daba `width / INFINITY = 0.0`, y min_5 se quedaba con 0:
+    // todos los radios a cero. Con un rect de 100x50 y UNA esquina redondeada,
+    // tres lados tenian radio 0, asi que se colaba el 0 y el radio se perdia.
+    let ratio = |side_len: f32, sum: f32| {
+        if sum > 0.0 {
+            side_len / sum
+        } else {
+            1.0
+        }
+    };
     let f = min_5(
         1.0,
-        width / safe(r[0].0 + r[1].0),
-        height / safe(r[1].1 + r[2].1),
-        width / safe(r[2].0 + r[3].0),
-        height / safe(r[3].1 + r[0].1),
+        ratio(width, r[0].0 + r[1].0),
+        ratio(height, r[1].1 + r[2].1),
+        ratio(width, r[2].0 + r[3].0),
+        ratio(height, r[3].1 + r[0].1),
     );
     if f < 1.0 {
         [
@@ -353,6 +368,45 @@ mod tests {
             "solo la esquina redondeada debe tener handles (in+out), hallados {}",
             con_handles
         );
+    }
+
+    /// El bug que casi se cuela: un lado SIN radio no debe imposing restriccion.
+    ///
+    /// Con un rect de 100x50 y una sola esquina redondeada de 10, tres de los
+    /// cuatro lados suman 0. Si un ratio de un lado sin radio vale 0 en vez de
+    /// 1, min_5 se queda con 0 y TODOS los radios se aplastan a cero: el rect
+    /// sale sin esquinas redondeadas.
+    #[test]
+    fn a_side_without_radius_does_not_shrink_the_others() {
+        let out = fix_radius(
+            [(10.0, 10.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0)],
+            100.0,
+            50.0,
+        );
+        assert_eq!(
+            out[0], (10.0, 10.0),
+            "la esquina con radio debe quedarse como estaba: {:?}",
+            out
+        );
+        assert_eq!(out[3], (0.0, 0.0), "y las que no tienen radio siguen a 0");
+    }
+
+    /// Lo mismo visto desde la forma: una sola esquina redondeada produce
+    /// UNA cubica y el radio no desaparece.
+    #[test]
+    fn single_rounded_corner_keeps_its_radius() {
+        let cmds = rect_commands(
+            0.0,
+            0.0,
+            100.0,
+            50.0,
+            Some([(10.0, 10.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0)]),
+        );
+        let cubics = cmds
+            .iter()
+            .filter(|c| matches!(c, PathCommand::CubicTo(..)))
+            .count();
+        assert_eq!(cubics, 1, "esperaba 1 cubica, hubo {}", cubics);
     }
 
     #[test]
